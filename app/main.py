@@ -11,6 +11,7 @@ import time
 import logging
 import datetime
 import pprint
+import pytz
 from typing import Dict, List, Optional
 from pathlib import Path
 from dotenv import load_dotenv
@@ -52,7 +53,7 @@ class NordpoolPrice(Device_Base):
         self.current_price: Optional[float] = 0.0
         self.spot_api = elspot.Prices()
         self.scheduler = BackgroundScheduler()
-
+                
         node = Node_Base(self, "price", "Price", "electricity")
         self.node = node
         self.add_node(node)
@@ -90,13 +91,19 @@ class NordpoolPrice(Device_Base):
         try:
             logger.info("Fetching prices from Nordpool")
             
-            # Get today's and tomorrow's prices (to ensure we have the full day)
-            today = datetime.date.today()
+            
+            # Get today's and tomorrow's dates in the region's timezone
+            today = datetime.datetime.now(pytz.UTC).date()
             tomorrow = today + datetime.timedelta(days=1)
             
-            # Fetch prices for Finland area
+            logger.info(f"Fetching prices for {NORDPOOL_REGION} region, today: {today}, tomorrow: {tomorrow}")
+            
+            # Fetch prices for the specified region
             today_prices = self.spot_api.hourly(areas=[NORDPOOL_REGION], end_date=today)
             tomorrow_prices = self.spot_api.hourly(areas=[NORDPOOL_REGION], end_date=tomorrow)
+            
+            # Clear existing prices before adding new ones
+            self.prices.clear()
             
             # Process and store prices
             self._process_prices(today_prices)
@@ -109,11 +116,13 @@ class NordpoolPrice(Device_Base):
     def _process_prices(self, price_data):
         """Process price data from Nordpool API."""
         if not price_data or "areas" not in price_data or NORDPOOL_REGION not in price_data["areas"]:
-            logger.warning("No price data available for FI area")
+            logger.warning(f"No price data available for {NORDPOOL_REGION} area")
             return
         
         for hour_data in price_data["areas"][NORDPOOL_REGION]["values"]:
-            start_time = hour_data["start"].replace(tzinfo=None)
+            # The start time from Nordpool already has timezone info
+            # We need to remove it to match our datetime objects without timezone
+            start_time = hour_data["start"].astimezone(pytz.UTC)
             price = hour_data["value"]
             self.prices[start_time] = price
     
@@ -123,8 +132,13 @@ class NordpoolPrice(Device_Base):
             logger.warning("No price data available")
             return
         
-        # Get current time and find the active price period
-        now = datetime.datetime.now().replace(minute=0, second=0, microsecond=0)
+        # Get current time in the region's timezone instead of system time
+        utc_now = datetime.datetime.now(pytz.UTC)
+        
+        # Replace timezone info to match the format in self.prices
+        now = utc_now.replace(minute=0, second=0, microsecond=0)
+        
+        logger.info(f"Checking price for time: {now}")
         
         # Check if we have data for the current hour
         if now in self.prices:
