@@ -1,10 +1,10 @@
 # Nordpool MQTT Price Tracker
 
-A Dockerized Python application that fetches electricity spot prices from Nordpool for the Finland region and publishes price updates to MQTT.
+A Dockerized Python application that fetches electricity spot prices from Nordpool for the a specific region and publishes price updates to MQTT using the Homie MQTT device definition, allowing automatic discovery of devices and properties by Home Assistant, OpenHAB, etc.
 
 ## Features
 
-- Fetches Nordpool spot prices once a day for the Finland (FI) region
+- Fetches Nordpool spot prices once a day for the a specific region
 - Monitors price changes (which occur every 15 minutes)
 - Publishes current active price to an MQTT topic whenever the price changes
 - Configurable MQTT settings through environment variables
@@ -12,22 +12,26 @@ A Dockerized Python application that fetches electricity spot prices from Nordpo
 
 ## Setup
 
-### Prerequisites
+Fetch the Docker image from Docker Hub and run it directly:
 
-- Docker and Docker Compose
-- Git (for cloning the repository)
+```bash
+docker pull strandborg/nordpool-price-tracker:latest
+```
+
 
 ### Configuration
 
-Create a `.env` file in the project root with the following variables:
+The following environment variables are required:
 
 ```
 MQTT_BROKER=mqtt.example.com
-MQTT_PORT=1883
 MQTT_USERNAME=your_username
 MQTT_PASSWORD=your_password
-MQTT_TOPIC=electricity/nordpool/price
-MQTT_CLIENT_ID=nordpool-price-tracker
+
+MQTT_PORT=<optional: MQTT server port, default: 1883)
+NORDPOOL_REGION=<optional: Nordpool region code, default: FI>
+MQTT_DEVICE_ID=<optional: Device ID, default: nordpool-price>
+MQTT_DEVICE_NAME=<optional: Device Name, default: Nordpool Price>
 ```
 
 ### Running with Docker
