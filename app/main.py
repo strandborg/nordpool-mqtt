@@ -79,13 +79,27 @@ class NordpoolPriceTracker:
         except Exception as e:
             logger.error(f"Error connecting to MQTT broker: {e}")
     
+    def _convert_price_to_cents_with_vat(self, price_eur_mwh: float) -> float:
+        """
+        Convert price from EUR/MWh to cents/kWh and add 25.5% VAT.
+        
+        Conversion:
+        1 MWh = 1000 kWh
+        1 EUR = 100 cents
+        So EUR/MWh to cents/kWh: divide by 10
+        Then add 25.5% VAT: multiply by 1.255
+        """
+        return (price_eur_mwh / 10) * 1.255
+    
     def publish_price(self, price: float):
         """Publish price to MQTT topic."""
         try:
-            payload = str(price)
+            # Convert price to cents/kWh with VAT before publishing
+            converted_price = self._convert_price_to_cents_with_vat(price)
+            payload = str(round(converted_price, 2))  # Round to 2 decimal places for readability
             result = self.mqtt_client.publish(MQTT_TOPIC, payload, qos=1, retain=True)
             if result.rc == mqtt.MQTT_ERR_SUCCESS:
-                logger.info(f"Published price {price} to {MQTT_TOPIC}")
+                logger.info(f"Published price {converted_price:.3f} cents/kWh (with VAT) to {MQTT_TOPIC}")
             else:
                 logger.error(f"Failed to publish price: {result.rc}")
         except Exception as e:
@@ -139,7 +153,8 @@ class NordpoolPriceTracker:
             
             # Publish price if it's different from the current price
             if self.current_price != new_price:
-                logger.info(f"Price changed: {self.current_price} -> {new_price}")
+                logger.info(f"Price changed: {self.current_price:.3f} -> {new_price:.3f} EUR/MWh")
+                logger.info(f"Converted price: {self._convert_price_to_cents_with_vat(new_price):.3f} cents/kWh (with VAT)")
                 self.current_price = new_price
                 self.publish_price(new_price)
         else:
@@ -156,11 +171,11 @@ class NordpoolPriceTracker:
         self.fetch_prices()
         self.check_current_price()
         
-        # Schedule daily price fetching - fetch at 00:15 to ensure all data is available
+        # Schedule daily price fetching - fetch at 13:15 to ensure all data is available
         self.scheduler.add_job(
             self.fetch_prices, 
             trigger="cron", 
-            hour=0, 
+            hour=13, 
             minute=15, 
             id="fetch_prices"
         )
