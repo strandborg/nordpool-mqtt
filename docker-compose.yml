@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  nordpool-tracker:
+    build: .
+    image: nordpool-price-tracker
+    container_name: nordpool-price-tracker
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    environment:
+      - TZ=Europe/Helsinki
